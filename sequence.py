@@ -41,6 +41,7 @@ RE_NumStart = re.compile(r'^\d')
 
 ERROR_SEQUENCE_TYPE = "Sequence members must be of list or value of type string and/or Frame object."
 ERROR_SEQUENCE_MATCH = "The following member do not belong in this sequence: "
+ERROR_SEQUENCE_TYPE = "Argument expected to be of type str, Frame or Sequence. Not: "
 
 
 # ======================================================================
@@ -82,7 +83,7 @@ class Sequence:
 			else:
 				if not member.match(f):
 					raise SequenceError(ERROR_SEQUENCE_MATCH + str(member.path) )
-		
+
 		self._dirPath = f.dirPath
 		self._dirName = f.dirName
 		self._head = f.head
@@ -135,9 +136,49 @@ class Sequence:
 			return []
 
 
-	#---Private setter methods
+	#---Private methods
 	def _set_readonly(self, value):
 		raise TypeError("Read-only attribute")
+
+	def _set_frames(self, arg):
+		# verify
+		if not isinstance(arg, list):
+			arg = [arg]
+		tmp = []
+		for a in arg:
+			if isinstance(a, int):
+				pass
+			elif isinstance(a, str):
+				a =int(a)
+			else:
+				raise TypeError("Expected a value or list of integers")
+			tmp.append(a.number)
+		tmp = list(set(tmp))
+		tmp.sort()
+		self._frames = tmp
+
+	def _normalise_arg(self, arg, okList=False):
+		"""
+		Takes str, Frame or Sequence.
+		Returns Frame, Sequence or list of them.
+		If arg is not of those types, a TypeError is thrown
+		"""
+		if isinstance(arg, str):
+			arg = Frame(arg)
+		elif isinstance(arg, Frame) or isinstance(arg, Sequence)
+			pass
+		elif isinstance(arg, list):
+			if okList == False:
+				raise TypeError(ERROR_SEQUENCE_TYPE+str(type(arg)))
+			else:
+				for i in arg:
+					if isinstance(i, str):
+						i = Frame(i)
+					elif not( isinstance(i, Frame) or isinstance(i, Sequence) ):
+						TypeError(ERROR_SEQUENCE_TYPE+str(type(i)))
+		else:
+			raise TypeError(ERROR_SEQUENCE_TYPE+str(type(arg)))
+		return arg
 
 
 	#------ PROPERTIES -------------------------------------------------
@@ -158,32 +199,46 @@ class Sequence:
 
 
 	#---Public methods
-	def match(self, frame):
-		# Returns true if both items belong in the same sequence
-		if self.ext == frame.ext:
-			if self.padding == frame.padding:
-				if self.head == frame.head:
-					if self.tail == frame.tail:
-						return True
-		return False
+	def match(self, arg):
+		"""
+		Returns true if self and argument belong in the same sequence and False if not
+		"""
+		arg = self._normalise_arg(arg)
+		if not isinstance(arg, list):
+			arg = [arg]
+		# Check for match
+		for member in arg:
+			if self.ext == arg.ext:
+				if self.padding == arg.padding:
+					if self.head == arg.head:
+						if self.tail == arg.tail:
+							continue
+			return False
+		return True
 
 	def contains(self, frame):
 		pass
 
-	def append(self, frames):
-		# Adds a number to the sequence
-		# If one of the members do not belong, a SequenceError is thrown
+	def append(self, arg):
+		"""
+		Adds arguments to the sequence
+		"""
+		arg = self._normalise_arg(arg)
+		if not isinstance(arg, list):
+			arg = [arg]
 		odd = []
-		for f in frames:
+		for f in arg:
 			if self.match(f):
 				odd.append(f)
 		if odd:
 			raise SequenceError(ERROR_SEQUENCE_MATCH + str([o.path for o in odd]) )
 		else:
-			for f in frames:
-				self._frames.append(f.number)
-				self._frames = list(set(self._frames))
-				self._frames.sort()
+			for f in arg:
+				if f isinstance(f, Sequence):
+					self._set_frames(self.frames+f.frames)
+					pass
+				else:
+					self._set_frames(self.frames+f.number)
 
 	def formated(self, format):
 		pass
@@ -499,9 +554,3 @@ if __name__ ==  "__main__":
 	print(s[1].range)
 	"""
 	'''
-
-	a = [1,2,3,4]
-
-	for i in a:
-		b = i
-	print(b)
