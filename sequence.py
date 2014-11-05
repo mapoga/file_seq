@@ -35,9 +35,12 @@ pp = pprint.PrettyPrinter(indent=2)
 # CONSTANTS
 # ======================================================================
 
-reDigits = re.compile(r'\d+')
-reNonDigits = re.compile(r'\D+')
-reNumStart = re.compile(r'^\d')
+RE_Digits = re.compile(r'\d+')
+RE_NonDigits = re.compile(r'\D+')
+RE_NumStart = re.compile(r'^\d')
+
+ERROR_SEQUENCE_TYPE = "Sequence members must be of list or value of type string and/or Frame object."
+ERROR_SEQUENCE_MATCH = "The following member do not belong in this sequence: "
 
 
 # ======================================================================
@@ -58,24 +61,36 @@ class FrameError(Exception):
 
 class Sequence:
 	"""
-	Sequence documentation
+	Takes list or value of type string and/or Frame object as argument
 
 	"""
 
 	def __init__(self, frames):
-		self._dirPath = frames[0].dirPath
-		self._dirName = frames[0].dirName
-		self._head = frames[0].head
-		self._tail = frames[0].tail
-		self._padding = frames[0].padding
-		self._ext = frames[0].ext
-		self._frames = list(set([ f.number for f in frames ]))
+		# format argument as a list of frame object
+		if isinstance(frames, str) or isinstance(frames, Frame):
+			frames = [frames]
+		elif not isinstance(frames, list):
+			raise TypeError(ERROR_SEQUENCE_TYPE)
+
+		for idx, member in enumerate(frames):
+			if isinstance(member, str):
+				member = Frame(member)
+			elif not isinstance(member, Frame):
+				raise TypeError(ERROR_SEQUENCE_TYPE)
+			if idx == 0:
+				f = member
+			else:
+				if not member.match(f):
+					raise SequenceError(ERROR_SEQUENCE_MATCH + str(member.path) )
+		
+		self._dirPath = f.dirPath
+		self._dirName = f.dirName
+		self._head = f.head
+		self._tail = f.tail
+		self._padding = f.padding
+		self._ext = f.ext
+		self._frames = list(set([ i.number for i in frames ]))
 		self._frames.sort()
-		self._set_first()
-		self._set_last()
-		self._set_length()
-		self._set_missing()
-		self._set_range()
 
 
 	#------ METHODS ----------------------------------------------------
@@ -103,45 +118,26 @@ class Sequence:
 		return self._frames
 
 	def _get_first(self):
-		return self._first
+		return self.frames[0]
 
 	def _get_last(self):
-		return self._last
+		return self.frames[-1]
 
 	def _get_length(self):
-		return self._length
+		return len(self.frames)
 
 	def _get_missing(self):
-		return self._missing
-
-	def _get_range(self):
-		return self._range
+		if self.length > 1 and  self.first != None:
+			whole = set(range(self.first, self.last))
+			missing = list(whole-set(self.frames))
+			return missing.sort()
+		else:
+			return []
 
 
 	#---Private setter methods
 	def _set_readonly(self, value):
 		raise TypeError("Read-only attribute")
-
-	def _set_first(self):
-		self._first = self._frames[0]
-
-	def _set_last(self):
-		self._last = self._frames[-1]
-
-	def _set_length(self):
-		self._length = len(self._frames)
-
-	def _set_missing(self):
-		if len(self._frames) > 1 and  self._frames[0]!= None:
-			whole = set(range(self._frames[0], self._frames[-1]))
-			tmp = list(whole-set(self._frames))
-			tmp.sort()
-			self._missing = tmp
-		else:
-			self._missing = []
-
-	def _set_range(self):
-		self._range = str( str(self.frames[0]) +'-'+ str(self.frames[-1]) )
 
 
 	#------ PROPERTIES -------------------------------------------------
@@ -159,37 +155,35 @@ class Sequence:
 	last = property(_get_last, _set_readonly, doc="Integer number for the last frame of the sequence")
 	length = property(_get_length, _set_readonly, doc="Length of the frames list")
 	missing = property(_get_missing, _set_readonly, doc="Integer list of frames missing in the sequence")
-	range = property(_get_range, _set_readonly, doc="String containning the frame range of the sequence. ex:'1-10' ") 
 
 
 	#---Public methods
 	def match(self, frame):
-		# Returns true if both items are of the same sequence
+		# Returns true if both items belong in the same sequence
 		if self.ext == frame.ext:
 			if self.padding == frame.padding:
 				if self.head == frame.head:
 					if self.tail == frame.tail:
-						if self.ext != None:
-							if self.padding != None:
-								if frame.number:
-									return True
+						return True
 		return False
 
 	def contains(self, frame):
 		pass
 
-	def append(self, frame):
-		if self.match(frame):
-			self._frames.append(frame.number)
-			self._frames = list(set(self._frames))
-			self._frames.sort()
-			self._set_first()
-			self._set_last()
-			self._set_length()
-			self._set_missing()
-			self._set_range()
+	def append(self, frames):
+		# Adds a number to the sequence
+		# If one of the members do not belong, a SequenceError is thrown
+		odd = []
+		for f in frames:
+			if self.match(f):
+				odd.append(f)
+		if odd:
+			raise SequenceError(ERROR_SEQUENCE_MATCH + str([o.path for o in odd]) )
 		else:
-			raise SequenceError('Appending item is not a member of this sequence')
+			for f in frames:
+				self._frames.append(f.number)
+				self._frames = list(set(self._frames))
+				self._frames.sort()
 
 	def formated(self, format):
 		pass
@@ -221,10 +215,10 @@ class Frame:
 		self._padding = None		
 		body, self._ext = os.path.splitext(doc)
 
-		self._numStart = True if reNumStart.match( body ) else False
+		self._numStart = True if RE_NumStart.match( body ) else False
 		self._numIndex = None
-		self._numSubSet = reDigits.findall( body )
-		self._alphaSubSet = reNonDigits.findall( body )
+		self._numSubSet = RE_Digits.findall( body )
+		self._alphaSubSet = RE_NonDigits.findall( body )
 		self._set_subsets()
 
 
@@ -481,7 +475,8 @@ def decompress(): # from '1-3,4-8x2,18-20,22' to [1,2,3,4,6,8,18,19,20,22]
 
 if __name__ ==  "__main__":
 
-
+	'''
+	#path = os.path.normcase(path)
 
 	p = os.path.normcase("P:/Programming/Python/seq/tests")
 	#p = os.path.normcase("P:/Programming/Python/seq/tests/small")
@@ -503,3 +498,10 @@ if __name__ ==  "__main__":
 	pp.pprint(s[1]._dict_)
 	print(s[1].range)
 	"""
+	'''
+
+	a = [1,2,3,4]
+
+	for i in a:
+		b = i
+	print(b)
