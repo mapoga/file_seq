@@ -1,7 +1,7 @@
 
 """
 TODO:
-
+	-From scratch test
 	-Sequence should extend list type
 
 
