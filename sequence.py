@@ -1,6 +1,10 @@
 
 """
 TODO:
+
+	-Sequence should extend list type
+
+
 	-Clean frame class
 	-Being able to create sequence from list of path as well from list of frame object
 	-function to output get formatted sequence
@@ -20,7 +24,7 @@ TODO:
 """
 
 
-
+ 
 # ======================================================================
 # IMPORTS
 # ======================================================================
@@ -151,7 +155,7 @@ class Sequence:
 			elif isinstance(a, str):
 				a =int(a)
 			else:
-				raise TypeError("Expected a value or list of integers")
+				raise TypeError("Expected integer or list of it")
 			tmp.append(a.number)
 		tmp = list(set(tmp))
 		tmp.sort()
