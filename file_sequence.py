@@ -1,3 +1,6 @@
+#!/usr/bin/env python
+# python 2.6.6
+
 import re
 
 WHITE_SPACES = re.compile(r'\s+')
@@ -8,7 +11,7 @@ class Sequence:
 		self.sequence = data
 
 	def __repr__(self):
-		return "<sequence: {0}>".format(self.sequence)
+		return "<Sequence: '{0}'>".format(sequence_to_compact_string(self.sequence))
 
 	def __iter__(self):
 		return iter(self.sequence)
@@ -23,9 +26,7 @@ class Sequence:
 		return len(self.sequence)
 
 	def __as_list(self):
-		data = list(set([ i.number for i in self.sequence ]))
-		data.sort()
-		return data
+		return sort(list(set([ i.number for i in self.sequence ])))
 
 
 	def append(self):
@@ -39,7 +40,7 @@ class Sequence:
 def sequence_to_compact_string(arg = []):
 	"""
 	Converts a sequence of numbers into a range string representation
-	sequence_to_range([1,2,3,11,12,20,22,24,25]) >> "1-3,11,12,20-24x2,25"
+	sequence_to_compact_string([1,2,3,11,12,20,22,24,25]) >>> "1-3,11,12,20-24x2,25"
 	"""
 	# Verify arg type, remove duplicates & sort
 	try:
@@ -93,23 +94,30 @@ def sequence_to_compact_string(arg = []):
 	return ','.join([format_rule(*i) for i in sub_rule(arg)])
 	
 def compact_string_to_sequence(string=""):
-
+	"""
+	Converts a range string representation into a sequence of numbers
+	compact_string_to_sequence("1-3,11,12,20-24x2,25") >>> [1,2,3,11,12,20,22,24,25]
+	"""
 	# verify arg type is string
 	if string is isinstance(string, basestring):
 		raise TypeError("Argument must be string")
 		
 	def string_rule_to_sequence(rule = ''):
+		"""  Convert a compact string sequence rule into a list  """
 		if 'x' in rule:
+			# Apply rule to range
 			rule = re.split(r"[x,X]", rule)
-			_range = re.split(r"\-", rule[0])
-			return [s for s in range(int(_range[0]),int(_range[-1])) if s-int(_range[0]) % int(rule[-1]) == 0]
+			start, end = re.split(r"\-", rule[0])
+			return [s for s in range(int(start),int(end)+1) if (s-int(start)) % int(rule[-1]) == 0]
 		elif '-' in rule:
-			_range = re.split(r"\-", rule)
-			return range(int(_range[0]),int(_range[-1]))
+			# get range
+			start, end = re.split(r"\-", rule)
+			return range(int(start),int(end)+1)
 		else:
-			return rule
-	
-	return [string_rule_to_sequence(e) for e in re.split(r'\,',re.sub(WHITE_SPACES, "", string))]
+			# single value
+			return [int(rule)]
+	# Remove whitespaces and return a list of int from unpacked sub ranges
+	return [i for sub_i in [string_rule_to_sequence(e) for e in re.split(r'\,',re.sub(WHITE_SPACES, "", string))] for i in sub_i ]
 
 
 
@@ -128,16 +136,3 @@ if __name__ == "__main__":
 	del s[5]
 	print(s)
 	print(len(s))
-	ls = [1,2,3,11,12,20,22,24,25]
-	print(ls)
-	#print("")
-	st = sequence_to_compact_string(ls)
-	print(st)
-	ls = compact_string_to_sequence(st)
-	print(ls)
-	"""
-	print("")
-	l = [4,8,12,16,17,18,22]
-	print(l)
-	print(sequence_to_range(l))
-	"""
