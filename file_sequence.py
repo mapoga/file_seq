@@ -1,32 +1,88 @@
 #!/usr/bin/env python
 # python 2.6.6
 
+# IMPORTS
 import re
 
+# CONSTANTS
 WHITE_SPACES = re.compile(r'\s+')
+RE_DIGITS = re.compile(r'\d+')
+RE_NON_DIGITS = re.compile(r'\D+')
+RE_DIGIT_START = re.compile(r'^\d')
 
-class Sequence:
 
-	def __init__(self, data):
-		self.sequence = data
+# CLASSES
+class Member_file(object):
+	def __init__(self, value):
+		if not (type(value)==str or type(value)==Member_file):
+			raise TypeError("Member_file argument must be of type string or Member_file")
+		if type(value)==Member_file:
+			self = value
+			self.__path = value.path
+			return
+		self.__path = value
 
 	def __repr__(self):
-		return "<Sequence: '{0}'>".format(sequence_to_compact_string(self.sequence))
+		return "<Member_file: '{0}'>".format(self.path)
+
+	@property
+	def path(self):
+		return self.__path
+
+
+
+class Sequence(object):
+
+	def __init__(self, data):
+		self.__sequence = data
+
+	def __repr__(self):
+		return "<Sequence: '{0}'>".format(sequence_to_compact_string(self.__sequence))
 
 	def __iter__(self):
-		return iter(self.sequence)
+		return iter(self.__sequence)
 
 	def __getitem__(self, index):
-		return self.sequence[index]
+		return self.__sequence[index]
 
 	def __delitem__(self, index):
-		self.sequence.pop(index)
+		self.__sequence.pop(index)
 
 	def __len__(self):
-		return len(self.sequence)
+		return len(self.__sequence)
 
-	def __as_list(self):
-		return sort(list(set([ i.number for i in self.sequence ])))
+	@property
+	def sequence(self):
+		return self.__sequence
+
+	@property
+	def dir_path(self):
+		pass
+
+	@property
+	def dir_name(self):
+		pass
+
+	@property
+	def head(self):
+		pass
+
+	@property
+	def padding(self):
+		pass
+
+	@property
+	def tail(self):
+		pass
+
+	@property
+	def ext(self):
+		pass
+
+
+
+	def __numbers_as_list(self):
+		return sort(list(set([ i.number for i in self.__sequence ])))
 
 
 	def append(self):
@@ -35,8 +91,9 @@ class Sequence:
 		pass
 
 
-	
-	
+
+# MODULE FUNCTIONS
+
 def sequence_to_compact_string(arg = []):
 	"""
 	Converts a sequence of numbers into a range string representation
@@ -136,3 +193,12 @@ if __name__ == "__main__":
 	del s[5]
 	print(s)
 	print(len(s))
+	print(s.sequence)
+
+	p = '//path//lol.jpeg'
+	item = Member_file(p)
+	#print(type(item))
+	duplicate = Member_file(item)
+	print(item)
+	print(item.path)
+	print(duplicate)
