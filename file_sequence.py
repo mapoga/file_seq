@@ -4,35 +4,135 @@
 # IMPORTS
 import re
 
+
 # CONSTANTS
 WHITE_SPACES = re.compile(r'\s+')
 RE_DIGITS = re.compile(r'\d+')
 RE_NON_DIGITS = re.compile(r'\D+')
-RE_DIGIT_START = re.compile(r'^\d')
+RE_NUM_START = re.compile(r'^\d')
+RE_ALPHA_DIGITAL = re.compile(r'(\d+|\D+)')
+RE_PATH_SEPARATOR = re.compile(r'(//?|\\\\?)')
+RE_EXT = re.compile(r'\.\D+$')
+RE_DIRECTORIES = re.compile(r'[\s\S]+?(?://?|\\\\?|$)')# Everything before single and double slashs includingly.
+
+
+# EXCEPTIONS
+class SequenceError(Exception):
+	pass
+class FileError(Exception):
+	pass
 
 
 # CLASSES
-class Member_file(object):
-	def __init__(self, value):
-		if not (type(value)==str or type(value)==Member_file):
-			raise TypeError("Member_file argument must be of type string or Member_file")
-		if type(value)==Member_file:
-			self = value
-			self.__path = value.path
-			return
-		self.__path = value
+class File(object):
+	def __init__(self, path):
+		if isinstance(path, File):
+			# Data is File, copy attributes
+			self.__dict__.update(path.__dict__)
+		elif type(path) is str:
+			# Data is string, initialise attributes
+			self.__path = path
+			# Basic attributes based of path
+			self.__dir_path = ''
+			self.__dir_name = ''
+			self.__file_name = ''
+			self.__ext = ''
+			self.__file_parts = None
+			self._set_basic_attr()
+			# Sequential attributes, to be assigned when sequence is found
+			self.__head = ''
+			self.__number = None
+			self.__tail = ''
+
+			self.__padding = None
+			self.__number_idx = None
+		else:
+			# Data is of wrong type, raise exception
+			raise TypeError("File argument must be of type str or instance of File class")
 
 	def __repr__(self):
-		return "<Member_file: '{0}'>".format(self.path)
+		return "<File: '{0}'>".format(self.__path)
+
 
 	@property
 	def path(self):
 		return self.__path
+	@property
+	def dir_path(self):
+		return self.__dir_path
+	@property
+	def dir_name(self):
+		return self.__dir_name
+	@property
+	def file_name(self):
+		return self.__file_name
+	@property
+	def head(self):
+		return self.__head
+	@property
+	def number(self):
+		return self.__number
+	@property
+	def tail(self):
+		return self.__tail
+	@property
+	def ext(self):
+		return self.__ext
+	@property
+	def padding(self):
+		return self.__padding
+
+
+	def _set_basic_attr(self):
+		# Set basic attributes based on path
+		p = re.findall(RE_DIRECTORIES, self.path)
+		self.__dir_path = ''.join(p[:-1])
+		self.__dir_name = re.sub(RE_PATH_SEPARATOR, "", p[-2])
+		self.__file_name = re.sub(RE_EXT, "",  p[-1])
+		self.__ext = re.findall(RE_EXT, p[-1])[0]
+		self.__file_parts = re.findall(RE_ALPHA_DIGITAL, self.__file_name)
+
+	def set_number_index(self, idx):
+		idx = int(idx)
+		num = re.findall(RE_DIGITS, self.file_name)
+		alpha = re.findall(RE_NON_DIGITS, self.file_name)
+		num_start = re.findall(RE_NUM_START, self.file_name)
+		try:
+			self.__number_idx = idx
+			self.__number = int(num[idx])
+			self.__padding = len(num)
+		except IndexError:
+			raise FileError("Number index is out of range")
+
+		# Assign head and tail
+		signed_idx = idx if num >= 0 else idx-len(num)
+		mod = 1
+		while len(num) > abs(signed_idx):
+			# Head
+			if (num_start and mod % 2) or (not num_start and not mod % 2):
+				self.__head += num.pop(0)
+			else:
+				self.__head += alpha.pop(0)
+			mod +=1
+		else:
+			self.__head += alpha.pop(0)
+			num.pop(0)
+			mod = 0
+		while num or alpha:
+			# Tail
+			if mod % 2:
+				self.__tail += num.pop(0)
+			else:
+				self.__tail += alpha.pop(0)
+			mod +=1
+		self.__head = ''.join(self.__head) if self.__head else ''
+		self.__tail = ''.join(self.__tail) if self.__tail else ''
+
 
 
 
 class Sequence(object):
-
+	
 	def __init__(self, data):
 		self.__sequence = data
 
@@ -50,53 +150,28 @@ class Sequence(object):
 
 	def __len__(self):
 		return len(self.__sequence)
-
+		
 	@property
 	def sequence(self):
 		return self.__sequence
 
-	@property
-	def dir_path(self):
-		pass
-
-	@property
-	def dir_name(self):
-		pass
-
-	@property
-	def head(self):
-		pass
-
-	@property
-	def padding(self):
-		pass
-
-	@property
-	def tail(self):
-		pass
-
-	@property
-	def ext(self):
-		pass
-
-
-
-	def __numbers_as_list(self):
+	def __as_list(self):
 		return sort(list(set([ i.number for i in self.__sequence ])))
-
-
+	def match(self, arg):
+		pass
 	def append(self):
 		pass
 	def extend(self):
 		pass
 
 
+	
 
-# MODULE FUNCTIONS
+
 
 def sequence_to_compact_string(arg = []):
 	"""
-	Converts a sequence of numbers into a range string representation
+	Converts a sequence of numbers into a string representation of a compact range
 	sequence_to_compact_string([1,2,3,11,12,20,22,24,25]) >>> "1-3,11,12,20-24x2,25"
 	"""
 	# Verify arg type, remove duplicates & sort
@@ -152,7 +227,7 @@ def sequence_to_compact_string(arg = []):
 	
 def compact_string_to_sequence(string=""):
 	"""
-	Converts a range string representation into a sequence of numbers
+	Converts a string representation of a compact range into a sequence of numbers
 	compact_string_to_sequence("1-3,11,12,20-24x2,25") >>> [1,2,3,11,12,20,22,24,25]
 	"""
 	# verify arg type is string
@@ -194,11 +269,18 @@ if __name__ == "__main__":
 	print(s)
 	print(len(s))
 	print(s.sequence)
+	m = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001.0001.png")
+	print(m)
+	print(m.path)
+	mm = File(m)
+	print(mm)
+	#mm.path = r"\\newpath\newfile.newext"
+	print(mm)
+	print(m)
+	m.set_number_index(-1)
+	d = m.__dict__
 
-	p = '//path//lol.jpeg'
-	item = Member_file(p)
-	#print(type(item))
-	duplicate = Member_file(item)
-	print(item)
-	print(item.path)
-	print(duplicate)
+	for att in d:
+		print(att, d[att])
+
+
