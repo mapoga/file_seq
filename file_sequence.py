@@ -39,7 +39,7 @@ class File(object):
 			self.__ext = ''
 			self.__file_parts = None
 			self._set_basic_attr()
-			# Sequential attributes, to be assigned when sequence is found
+			# Sequential attributes, to be assigned later when sequence is found
 			self.__head = ''
 			self.__number = None
 			self.__tail = ''
@@ -84,7 +84,7 @@ class File(object):
 
 
 	def _set_basic_attr(self):
-		# Set basic attributes based on path
+		""" Set basic attributes based on path """
 		p = re.findall(RE_DIRECTORIES, self.path)
 		self.__dir_path = ''.join(p[:-1])
 		self.__dir_name = re.sub(RE_PATH_SEPARATOR, "", p[-2])
@@ -92,41 +92,53 @@ class File(object):
 		self.__ext = re.findall(RE_EXT, p[-1])[0]
 		self.__file_parts = re.findall(RE_ALPHA_DIGITAL, self.__file_name)
 
-	def set_number_index(self, idx):
+	def set_number_from_index(self, idx):
+		''' Sets number attributes based on index'''
 		idx = int(idx)
 		num = re.findall(RE_DIGITS, self.file_name)
+		try:
+			number = int(num[idx])
+		except IndexError:
+			raise FileError("File number index is out of range")
+		pad = len(num[idx])
 		alpha = re.findall(RE_NON_DIGITS, self.file_name)
 		num_start = re.findall(RE_NUM_START, self.file_name)
-		try:
-			self.__number_idx = idx
-			self.__number = int(num[idx])
-			self.__padding = len(num)
-		except IndexError:
-			raise FileError("Number index is out of range")
+		head = tail = ''
 
-		# Assign head and tail
-		signed_idx = idx if num >= 0 else idx-len(num)
+		# determine head and tail based on index
+		signed_idx = idx if idx < 0 else idx-len(num)
 		mod = 1
-		while len(num) > abs(signed_idx):
-			# Head
-			if (num_start and mod % 2) or (not num_start and not mod % 2):
-				self.__head += num.pop(0)
+		if len(num) != abs(signed_idx):
+			while len(num) > abs(signed_idx):
+				# Head
+				if (num_start and mod % 2) or (not num_start and not mod % 2):
+					head += num.pop(0)
+				else:
+					head += alpha.pop(0)
+				mod +=1
 			else:
-				self.__head += alpha.pop(0)
-			mod +=1
-		else:
-			self.__head += alpha.pop(0)
-			num.pop(0)
-			mod = 0
+				head += alpha.pop(0)
+		num.pop(0)
+		mod = 0
 		while num or alpha:
 			# Tail
-			if mod % 2:
-				self.__tail += num.pop(0)
-			else:
-				self.__tail += alpha.pop(0)
+			if num and mod % 2:
+				tail += num.pop(0)
+			elif alpha:
+				tail += alpha.pop(0)
 			mod +=1
-		self.__head = ''.join(self.__head) if self.__head else ''
-		self.__tail = ''.join(self.__tail) if self.__tail else ''
+		# Assign to self
+		self.__number_idx = idx
+		self.__number = number
+		self.__padding = pad
+		self.__head = ''.join(head) if head else ''
+		self.__tail = ''.join(tail) if tail else ''
+
+	def get_numerical_differences(self, other):
+		""" Returns the index of the numerical differences in a list. The alpha portion of the name must be the same """
+		
+		pass
+
 
 
 
@@ -277,7 +289,7 @@ if __name__ == "__main__":
 	#mm.path = r"\\newpath\newfile.newext"
 	print(mm)
 	print(m)
-	m.set_number_index(-1)
+	m.set_number_from_index(1)
 	d = m.__dict__
 
 	for att in d:
