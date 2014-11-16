@@ -25,19 +25,27 @@ class FileError(Exception):
 
 # CLASSES
 class File(object):
+
+	def __new__(cls,arg):
+		print(isinstance(arg, File))
+		if isinstance(arg, cls):
+			return arg
+		elif type(arg) is str:
+			return object.__new__(cls)
+		else:
+			raise TypeError("File argument must be of type str or instance of File class")
+
 	def __init__(self, path):
-		if isinstance(path, File):
-			# Data is File, copy attributes
-			self.__dict__.update(path.__dict__)
-		elif type(path) is str:
-			# Data is string, initialise attributes
+		if not isinstance(path, File):
 			self.__path = path
 			# Basic attributes based of path
 			self.__dir_path = ''
 			self.__dir_name = ''
 			self.__file_name = ''
 			self.__ext = ''
-			self.__file_parts = None
+			self._file_parts = None
+			self._num_parts = None
+			self._non_num_parts = None
 			self._set_basic_attr()
 			# Sequential attributes, to be assigned later when sequence is found
 			self.__head = ''
@@ -45,14 +53,10 @@ class File(object):
 			self.__tail = ''
 
 			self.__padding = None
-			self.__number_idx = None
-		else:
-			# Data is of wrong type, raise exception
-			raise TypeError("File argument must be of type str or instance of File class")
+			self._number_idx = None
 
 	def __repr__(self):
 		return "<File: '{0}'>".format(self.__path)
-
 
 	@property
 	def path(self):
@@ -90,9 +94,11 @@ class File(object):
 		self.__dir_name = re.sub(RE_PATH_SEPARATOR, "", p[-2])
 		self.__file_name = re.sub(RE_EXT, "",  p[-1])
 		self.__ext = re.findall(RE_EXT, p[-1])[0]
-		self.__file_parts = re.findall(RE_ALPHA_DIGITAL, self.__file_name)
+		self._file_parts = re.findall(RE_ALPHA_DIGITAL, self.__file_name)
+		self._num_parts = re.findall(RE_DIGITS, self.__file_name)
+		self._non_num_parts = re.findall(RE_NON_DIGITS, self.__file_name)
 
-	def set_number_from_index(self, idx):
+	def set_number_from_index(self, idx = -1):
 		''' Sets number attributes based on index'''
 		idx = int(idx)
 		num = re.findall(RE_DIGITS, self.file_name)
@@ -128,17 +134,43 @@ class File(object):
 				tail += alpha.pop(0)
 			mod +=1
 		# Assign to self
-		self.__number_idx = idx
+		self._number_idx = idx
 		self.__number = number
 		self.__padding = pad
 		self.__head = ''.join(head) if head else ''
 		self.__tail = ''.join(tail) if tail else ''
+  
+	def get_parts_differences(self, other):
+		""" Returns the index of the differences in a list."""
+		if len(p) == len(other._file_parts):
+			return [ i for i,e in enumerate(self._file_parts) if e != other._file_parts[i] ]
+		else:
+			return self._file_parts[:]
 
-	def get_numerical_differences(self, other):
-		""" Returns the index of the numerical differences in a list. The alpha portion of the name must be the same """
-		
-		pass
+	def get_numerical_parts_differences(self, other):
+		""" Returns the index of the numerical parts differences in a list."""
+		if len(self._num_parts) == len(other._num_parts):
+			return [ i for i,e in enumerate(self._num_parts) if e != other._num_parts[i] ]
+		else:
+			return self._num_parts[:]
 
+	def get_alpha_parts_differences(self, other):
+		""" Returns the index of the non-numerical parts differences in a list."""
+		if len(self._non_num_parts) == len(other._non_num_parts ):
+			return [i for i,e in enumerate(self._non_num_parts) if e != other._non_num_parts [i] ]
+		else:
+			return self._non_num_parts[:]
+
+	def is_match(self, other):
+		if self.padding and other.padding:
+			if self.dir_path == other.dir_path:
+				if self.head == other.head:
+					if self.padding == other.padding:
+						if self.tail == other.tail:
+							if self.ext == other.ext:
+								if self._number_idx == other._number_idx:
+									return True
+		return False
 
 
 
@@ -146,10 +178,15 @@ class File(object):
 class Sequence(object):
 	
 	def __init__(self, data):
-		self.__sequence = data
+		try:
+			self.__sequence = [ File(i) for i in data ]
+		except TypeError:
+			raise TypeError("Sequence argument must be an iterable")
+		self.__sort_sequence()
+		self._number_idx = data[0]._number_idx
 
 	def __repr__(self):
-		return "<Sequence: '{0}'>".format(sequence_to_compact_string(self.__sequence))
+		return "<Sequence: '{0}'>".format( sequence_to_compact_string(self.__as_list() ) )
 
 	def __iter__(self):
 		return iter(self.__sequence)
@@ -161,20 +198,65 @@ class Sequence(object):
 		self.__sequence.pop(index)
 
 	def __len__(self):
-		return len(self.__sequence)
+		return len(self.sequence)
 		
 	@property
 	def sequence(self):
-		return self.__sequence
+		return self.__sequence[:]
+
+	@property
+	def path(self):
+		return self.sequence[0].path
+	@property
+	def dir_path(self):
+		return self.sequence[0].dir_path
+	@property
+	def dir_name(self):
+		return self.sequence[0].dir_name
+	@property
+	def head(self):
+		return self.sequence[0].head
+	@property
+	def tail(self):
+		return self.sequence[0].tail
+	@property
+	def ext(self):
+		return self.sequence[0].ext
+	@property
+	def padding(self):
+		return self.sequence[0].padding
+
 
 	def __as_list(self):
-		return sort(list(set([ i.number for i in self.__sequence ])))
-	def match(self, arg):
-		pass
-	def append(self):
-		pass
-	def extend(self):
-		pass
+		return [ i.number for i in self.__sequence ]
+
+	def __sort_sequence(self):
+		self.__sequence = sorted(list(set(self.sequence)), key=lambda item: item.number )
+
+	def is_match(self, other):
+		if self.padding and other.padding:
+			if self.dir_path == other.dir_path:
+				if self.head == other.head:
+					if self.padding == other.padding:
+						if self.tail == other.tail:
+							if self.ext == other.ext:
+								if self._number_idx == other._number_idx:
+									return True
+		return False
+
+	def append(self, other):
+		if self.is_match(other):
+			self.__sequence.append(other)
+			self.__sort_sequence()
+		else:
+			raise SequenceError("Argument does not match sequence")
+
+	def extend(self, other):
+		if self.is_match(other):
+			self.__sequence.extend(other)
+			self.__sort_sequence()
+		else:
+			raise SequenceError("Argument does not match sequence")
 
 
 	
@@ -235,7 +317,7 @@ def sequence_to_compact_string(arg = []):
 			else:
 				# yield single or sequence
 				yield start, end, step
-	return ','.join([format_rule(*i) for i in sub_rule(arg)])
+	return ','.join([format_rule(*i) for i in sub_rule(numbers)])
 	
 def compact_string_to_sequence(string=""):
 	"""
@@ -271,28 +353,27 @@ def compact_string_to_sequence(string=""):
 
 
 if __name__ == "__main__":
-	s = Sequence([1,2,3,4,5,6,7,8,9,10])
-	print(s)
-	for i in s:
-		pass
-		#print(i)
-	print(s[5])
-	del s[5]
-	print(s)
-	print(len(s))
-	print(s.sequence)
 	m = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001.0001.png")
 	print(m)
+	mm = File(m)
+
 	print(m.path)
 	mm = File(m)
-	print(mm)
-	#mm.path = r"\\newpath\newfile.newext"
-	print(mm)
-	print(m)
-	m.set_number_from_index(1)
-	d = m.__dict__
-
+	m1 = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0001.png")
+	m2 = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0002.png")
+	m3 = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0003.png")
+	m1.set_number_from_index()
+	m2.set_number_from_index()
+	m3.set_number_from_index()
+	"""
+	d = m2.__dict__
 	for att in d:
 		print(att, d[att])
-
-
+	"""
+	l = [m1, m1, m3, m2]
+	seq = Sequence(l)
+	print(len(seq.sequence))
+	print(len(list(set(seq.sequence))))
+	print(seq.sequence)
+	print(seq)
+	print(len(seq))
