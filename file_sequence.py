@@ -16,6 +16,10 @@ RE_PATH_SEPARATOR = re.compile(r'(//?|\\\\?)')
 RE_EXT = re.compile(r'\.\D+$')
 RE_DIRECTORIES = re.compile(r'[\s\S]+?(?://?|\\\\?|$)')# Everything before single and double slashs includingly.
 
+FORMAT_NUMBERED_FILE = "{DIRp}{HEAD}{NUMp}{TAIL}{EXT}"
+FORMAT_SEQUENCE = "{DIRp}{HEAD}{PAD#}{TAIL}{EXT} {NUMc}"
+FORMAT_SEQUENCE_RANGE = "{DIRp}{HEAD}{PAD#}{TAIL}{EXT} {NUMr}"
+FORMAT_SEQUENCE_REPR = "..{SEP}{DIRn}{SEP}{HEAD}{PAD#}{TAIL}{EXT} {NUMr}"
 
 # EXCEPTIONS
 class SequenceError(Exception):
@@ -26,7 +30,6 @@ class NumberedFileError(Exception):
 
 # CLASSES
 class NumberedFile(object):
-
 	def __new__(cls,arg):
 		if isinstance(arg, cls):
 			return arg
@@ -56,7 +59,7 @@ class NumberedFile(object):
 			self._number_idx = None
 
 	def __repr__(self):
-		return "<NumberedFile: '{0}'>".format(self.__path)
+		return "<NumberedFile: {0}>".format(self.path)
 
 	@property
 	def path(self):
@@ -85,7 +88,9 @@ class NumberedFile(object):
 	@property
 	def padding(self):
 		return self.__padding
-
+	@property
+	def number_index(self):
+		return self._number_idx
 
 	def _set_basic_attr(self):
 		""" Set basic attributes based on path """
@@ -112,11 +117,10 @@ class NumberedFile(object):
 		alpha = re.findall(RE_NON_DIGITS, self.file_name)
 		num_start = re.findall(RE_NUM_START, self.file_name)
 		head = tail = ''
-
 		# determine head and tail based on index
 		signed_idx = idx if idx < 0 else idx-len(num)
 		mod = 1
-		if len(num) != abs(signed_idx):
+		if len(num) != abs(signed_idx) or len(num) == 1:
 			while len(num) > abs(signed_idx):
 				# Head
 				if (num_start and mod % 2) or (not num_start and not mod % 2):
@@ -174,6 +178,25 @@ class NumberedFile(object):
 									return True
 		return False
 
+	def _FORMATING(self):
+		return {
+			"SEP": str(re.findall(RE_PATH_SEPARATOR, self.path)[-1]) if re.findall(RE_PATH_SEPARATOR, self.path) else str(os.sep),
+			"PATH": self.path,
+			"DIRp": self.dir_path,
+			"DIRn": self.dir_name,
+			"HEAD": self.head,
+			"PAD": str(self.padding),
+			"PAD#": ''.join(["#" for i in range(self.padding)]),
+			"PAD%": '%{0:0=2d}d'.format(self.padding),
+			"TAIL": self.tail,
+			"EXT": self.ext,
+			"NUM": str(self.number),
+			"NUMp": '{0:0=-{1}d}'.format(self.number, self.padding)
+			}
+
+	def formatted(self, format_str=FORMAT_NUMBERED_FILE):
+		return format_str.format(**self._FORMATING())
+
 
 
 
@@ -201,7 +224,7 @@ class Sequence(object):
 		self._number_idx = data[0]._number_idx
 
 	def __repr__(self):
-		return "<Sequence: '{0}'>".format( sequence_to_compact_string(self.__as_list() ) )
+		return "<Sequence: {0}>".format( self.formatted(FORMAT_SEQUENCE_REPR) )
 
 	def __iter__(self):
 		return iter(self.__sequence)
@@ -240,13 +263,21 @@ class Sequence(object):
 	@property
 	def padding(self):
 		return self.sequence[0].padding
-
-
-	def __as_list(self):
-		return [ i.number for i in self.__sequence ]
-
-	def __sort_sequence(self):
-		self.__sequence = sorted(list(set(self.sequence)), key=lambda item: item.number )
+	@property
+	def number_index(self):
+		return self.sequence[0].number_index
+	@property
+	def numbers(self):
+		return [ i.number for i in self.sequence ]
+	@property
+	def numbers_missing(self):
+		return sorted(list(set(range(self.sequence[0].number, self.sequence[-1].number+1))-set(self.numbers)))
+	@property
+	def missing(self):
+		if self.numbers_missing:
+			return [ NumberedFile( self.formatted("{DIRp}{HEAD}")+"{0:0=-{1}d}".format(i, self.padding)+self.formatted("{TAIL}{EXT}")) for i in self.numbers_missing]
+		else:
+			return []
 
 	def is_match(self, other):
 		if self.padding and other.padding:
@@ -273,11 +304,44 @@ class Sequence(object):
 		else:
 			raise SequenceError("Argument does not match sequence")
 
+	def formatted(self, format_str=FORMAT_SEQUENCE_RANGE):
+		return format_str.format(**self._FORMATING())
+
+	def _FORMATING(self):
+		return {
+			"SEP": str(re.findall(RE_PATH_SEPARATOR, self.path)[-1]) if re.findall(RE_PATH_SEPARATOR, self.path) else str(os.sep),
+			"DIRp": self.dir_path,
+			"DIRn": self.dir_name,
+			"HEAD": self.head,
+			"PAD": str(self.padding),
+			"PAD#": ''.join(["#" for i in range(self.padding)]),
+			"PAD%": '%{0:0=2d}d'.format(self.padding),
+			"TAIL": self.tail,
+			"EXT": self.ext,
+			"FIRST": str(self.sequence[0].number),
+			"LAST": str(self.sequence[-1].number),
+			"NUM": ','.join([ str(i) for i in self.numbers]),
+			"NUMc": sequence_to_compact_string(self.numbers),
+			"NUMr": "{0}-{1}".format(self.sequence[0].number, self.sequence[-1].number+1),
+			"MISS": ','.join([ str(i) for i in self.numbers_missing]) if self.numbers_missing else '',
+			"MISSc": sequence_to_compact_string(self.numbers_missing) if self.numbers_missing else '',
+			"MISSr": "{0}-{1}".format(self.numbers_missing[0], self.numbers_missing[-1]+1) if self.numbers_missing else '',
+			}		
+			
+	def __sort_sequence(self):
+		self.__sequence = sorted(list(set(self.sequence)), key=lambda item: item.number )
+
+
+
+
+
+
+
 
 	
 
 
-
+# make option to not use x2
 def sequence_to_compact_string(arg = []):
 	"""
 	Converts a sequence of numbers into a string representation of a compact range
@@ -366,14 +430,14 @@ def files_from_directory(path):
 		if filesList:
 			for f in filesList:
 				files.append(os.path.join(root, f))
-	return files
+	return sorted(files)
 
 def sequences_from_files (paths, idx=-1 ):
 	"""
 	Takes a collection of paths and converts it in a list of sequence(s)
 	Retains only files that are numbered.
 	"""
-	paths = sorted(list(set([NumberedFile(str(p)) for p in paths if re.findall(RE_DIGITS, str(p))])))
+	paths = sorted(list(set([NumberedFile(str(p)) for p in paths if re.findall(RE_DIGITS, str(p))])), key=lambda item: item.path  )
 	sequences = []
 	for index, path in enumerate(paths):
 		# list numerical index for possible matchs
@@ -409,25 +473,32 @@ def sequences_from_files (paths, idx=-1 ):
 
 
 if __name__ == "__main__":
-	m = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001.0001.png")
-	print(m)
-	mm = NumberedFile(m)
-
-	print(m.path)
-	mm = NumberedFile(m)
 	m1 = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0001.png")
 	m2 = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0002.png")
 	m3 = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0003.png")
 	m1.set_number_from_index()
 	m2.set_number_from_index()
 	m3.set_number_from_index()
-	"""
-	d = m2.__dict__
-	for att in d:
-		print(att, d[att])
-	"""
-	files = files_from_directory(r"P:\Programming\Python\seq\scripts\file_seq\tests\small")
-	print(files)
+	files = files_from_directory(r"P:\Programming\Python\seq\scripts\file_seq\tests\all_cripled")
+	#print(files)
 	seq = sequences_from_files(files)
 	print('')
+	print(seq[0].numbers)
+	print(seq[0].numbers_missing)
 	print(seq)
+	for i in seq:
+		print i
+	"""
+	print(m1.path)
+	print(m1.formatted("{DIRp}{HEAD}{NUMp}{TAIL}{EXT} {DIRn}"))
+	every = "    ".join([ "{"+key+"}: "+val for key, val in seq._FORMATING().items() ])
+	#every = "    ".join([ "{"+key+"}" for key in seq._FORMATING() ])
+	print(every)
+	#print(seq.formatted(every))
+	"""
+
+
+
+
+	# filter by index using builtin filter
+	#missing frames
