@@ -17,9 +17,9 @@ RE_EXT = re.compile(r'\.\D+$')
 RE_DIRECTORIES = re.compile(r'[\s\S]+?(?://?|\\\\?|$)')# Everything before single and double slashs includingly.
 
 FORMAT_NUMBERED_FILE = "{DIRp}{HEAD}{NUMp}{TAIL}{EXT}"
-FORMAT_SEQUENCE = "{DIRp}{HEAD}{PAD#}{TAIL}{EXT} {NUMc}"
+FORMAT_SEQUENCE_COMPACT = "{DIRp}{HEAD}{PAD#}{TAIL}{EXT} {NUMc}"
 FORMAT_SEQUENCE_RANGE = "{DIRp}{HEAD}{PAD#}{TAIL}{EXT} {NUMr}"
-FORMAT_SEQUENCE_REPR = "..{SEP}{DIRn}{SEP}{HEAD}{PAD#}{TAIL}{EXT} {NUMr}"
+FORMAT_SEQUENCE_REPR = "..{SEP}{DIRn}{SEP}{HEAD}{PAD#}{TAIL}{EXT} {NUMc}"
 
 # EXCEPTIONS
 class SequenceError(Exception):
@@ -327,7 +327,7 @@ class Sequence(object):
 			"MISSc": sequence_to_compact_string(self.numbers_missing) if self.numbers_missing else '',
 			"MISSr": "{0}-{1}".format(self.numbers_missing[0], self.numbers_missing[-1]+1) if self.numbers_missing else '',
 			}		
-			
+
 	def __sort_sequence(self):
 		self.__sequence = sorted(list(set(self.sequence)), key=lambda item: item.number )
 
@@ -486,15 +486,11 @@ if __name__ == "__main__":
 	print(seq[0].numbers)
 	print(seq[0].numbers_missing)
 	print(seq)
+	print('')
+	print(seq[2])
+	"""
 	for i in seq:
 		print i
-	"""
-	print(m1.path)
-	print(m1.formatted("{DIRp}{HEAD}{NUMp}{TAIL}{EXT} {DIRn}"))
-	every = "    ".join([ "{"+key+"}: "+val for key, val in seq._FORMATING().items() ])
-	#every = "    ".join([ "{"+key+"}" for key in seq._FORMATING() ])
-	print(every)
-	#print(seq.formatted(every))
 	"""
 
 
