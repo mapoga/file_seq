@@ -3,6 +3,7 @@
 
 # IMPORTS
 import re
+import os
 
 
 # CONSTANTS
@@ -19,24 +20,23 @@ RE_DIRECTORIES = re.compile(r'[\s\S]+?(?://?|\\\\?|$)')# Everything before singl
 # EXCEPTIONS
 class SequenceError(Exception):
 	pass
-class FileError(Exception):
+class NumberedFileError(Exception):
 	pass
 
 
 # CLASSES
-class File(object):
+class NumberedFile(object):
 
 	def __new__(cls,arg):
-		print(isinstance(arg, File))
 		if isinstance(arg, cls):
 			return arg
 		elif type(arg) is str:
 			return object.__new__(cls)
 		else:
-			raise TypeError("File argument must be of type str or instance of File class")
+			raise TypeError("Argument must be String")
 
 	def __init__(self, path):
-		if not isinstance(path, File):
+		if not isinstance(path, NumberedFile):
 			self.__path = path
 			# Basic attributes based of path
 			self.__dir_path = ''
@@ -56,7 +56,7 @@ class File(object):
 			self._number_idx = None
 
 	def __repr__(self):
-		return "<File: '{0}'>".format(self.__path)
+		return "<NumberedFile: '{0}'>".format(self.__path)
 
 	@property
 	def path(self):
@@ -97,6 +97,8 @@ class File(object):
 		self._file_parts = re.findall(RE_ALPHA_DIGITAL, self.__file_name)
 		self._num_parts = re.findall(RE_DIGITS, self.__file_name)
 		self._non_num_parts = re.findall(RE_NON_DIGITS, self.__file_name)
+		if not self._num_parts:
+			raise NumberedFileError("Path should have a numerical component to be considered a NumberedFile ")
 
 	def set_number_from_index(self, idx = -1):
 		''' Sets number attributes based on index'''
@@ -105,7 +107,7 @@ class File(object):
 		try:
 			number = int(num[idx])
 		except IndexError:
-			raise FileError("File number index is out of range")
+			raise NumberedFileError("NumberedFile number index is out of range")
 		pad = len(num[idx])
 		alpha = re.findall(RE_NON_DIGITS, self.file_name)
 		num_start = re.findall(RE_NUM_START, self.file_name)
@@ -176,12 +178,25 @@ class File(object):
 
 
 class Sequence(object):
+
+	def __new__(cls, data):
+		try:
+			is_iter = iter(data)
+		except TypeError:
+			is_iter = False
+		if isinstance(data, cls):
+			return data
+		elif is_iter:
+			return object.__new__(cls)
+		elif isinstance(data, NumberedFile):
+			return object.__new__(cls)
+		elif type(data) is str:
+			return NumberedFile.__new__(cls)
+		else:
+			raise TypeError("Argument must be iterable")
 	
 	def __init__(self, data):
-		try:
-			self.__sequence = [ File(i) for i in data ]
-		except TypeError:
-			raise TypeError("Sequence argument must be an iterable")
+		self.__sequence = [ NumberedFile(i) for i in data ]
 		self.__sort_sequence()
 		self._number_idx = data[0]._number_idx
 
@@ -345,6 +360,47 @@ def compact_string_to_sequence(string=""):
 	# Remove whitespaces and return a list of int from unpacked sub ranges
 	return [i for sub_i in [string_rule_to_sequence(e) for e in re.split(r'\,',re.sub(WHITE_SPACES, "", string))] for i in sub_i ]
 
+def files_from_directory(path):
+	files = []
+	for root, dirs, filesList in os.walk(path):
+		if filesList:
+			for f in filesList:
+				files.append(os.path.join(root, f))
+	return files
+
+def sequences_from_files (paths, idx=-1 ):
+	"""
+	Takes a collection of paths and converts it in a list of sequence(s)
+	Retains only files that are numbered.
+	"""
+	paths = sorted(list(set([NumberedFile(str(p)) for p in paths if re.findall(RE_DIGITS, str(p))])))
+	sequences = []
+	for index, path in enumerate(paths):
+		# list numerical index for possible matchs
+		matchs = [ p.get_numerical_parts_differences(path)[0] for p in paths if path.is_match(p) and p != path and path.get_parts_differences(p) == 1 and (not path.get_alpha_parts_differences(p)) ]
+		# find the most common
+		if matchs:
+			trend = max(set(matchs), key=matchs.count)
+		else:
+			trend = idx
+		# set number index
+		path.set_number_from_index(trend)
+
+		# Append to matching sequence or create new
+		if sequences:
+			is_match = False
+			for seq in sequences:
+				if path.is_match(seq):
+					# Macth found, append to it
+					seq.append(path)
+					is_match = True
+			if not is_match:
+				# Match not found, creat new sequence
+				sequences.append(Sequence([path]))
+		else:
+			# No sequence yet, create new one
+			sequences.append(Sequence([path]))
+	return sequences
 
 
 
@@ -353,15 +409,15 @@ def compact_string_to_sequence(string=""):
 
 
 if __name__ == "__main__":
-	m = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001.0001.png")
+	m = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001.0001.png")
 	print(m)
-	mm = File(m)
+	mm = NumberedFile(m)
 
 	print(m.path)
-	mm = File(m)
-	m1 = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0001.png")
-	m2 = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0002.png")
-	m3 = File("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0003.png")
+	mm = NumberedFile(m)
+	m1 = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0001.png")
+	m2 = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0002.png")
+	m3 = NumberedFile("//home//VGMTL//mgaubin//Desktop//Python//file_seq//tests//012_vb_110_v001_01.0003.png")
 	m1.set_number_from_index()
 	m2.set_number_from_index()
 	m3.set_number_from_index()
@@ -370,10 +426,8 @@ if __name__ == "__main__":
 	for att in d:
 		print(att, d[att])
 	"""
-	l = [m1, m1, m3, m2]
-	seq = Sequence(l)
-	print(len(seq.sequence))
-	print(len(list(set(seq.sequence))))
-	print(seq.sequence)
+	files = files_from_directory(r"P:\Programming\Python\seq\scripts\file_seq\tests\small")
+	print(files)
+	seq = sequences_from_files(files)
+	print('')
 	print(seq)
-	print(len(seq))
